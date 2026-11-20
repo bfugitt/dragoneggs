@@ -322,9 +322,9 @@ dialog p { margin: 6px 0; }
         <div class="banner" id="banner"></div>
       </div>
       <section class="panel" aria-labelledby="eggBoardTitle">
-          <div class="board-title"><h2 id="eggBoardTitle">Egg board</h2><p>The marker shows your egg number and its bonus.</p></div>
+          <div class="board-title"><h2 id="eggBoardTitle">Egg board</h2><p id="eggBoardNote">The marker shows your egg number and its bonus.</p></div>
           <div class="eggboard-scroll"><div class="eggboard" id="eggboard"></div></div>
-          <div class="legend">
+          <div class="legend" id="legend">
             <span style="--c:var(--easy)">Easy +2</span><span style="--c:var(--medium)">Medium +4</span><span style="--c:var(--hard)">Hard +6</span>
             <span style="--c:var(--vhard)">Very hard +8</span><span style="--c:var(--legend)">Legendary +10</span><span style="--c:var(--dragon)">7 = Dragon</span>
           </div>
@@ -362,8 +362,14 @@ dialog p { margin: 6px 0; }
   </div>
   <div class="field"><label for="n1">Player 1 name</label><input id="n1" value="Player 1" maxlength="16"></div>
   <div class="field" id="n2wrap"><label for="n2">Player 2 name</label><input id="n2" value="Player 2" maxlength="16"></div>
+  <div class="field"><label>Rules</label>
+    <div class="modes">
+      <button class="mode rule on" data-rules="classic"><b>Classic</b>Hatch for a bonus. Tiptoe away keeps half.</button>
+      <button class="mode rule" data-rules="double"><b>Double</b>Hatch doubles your warmth. Tiptoe away keeps it all.</button>
+    </div>
+  </div>
   <div class="field"><label for="target">Points to win</label>
-    <select id="target"><option value="15">15 (quick demo)</option><option value="20">20</option><option value="25">25</option><option value="30" selected>30 (full game)</option></select>
+    <select id="target"></select>
   </div>
   <div class="actions"><button class="btn" id="startBtn">Start the game</button><button class="btn alt" id="setupRules">How to play</button></div>
 </dialog>
@@ -386,6 +392,9 @@ dialog p { margin: 6px 0; }
     <tr><td>3 or 11</td><td>Very hard</td><td>+8</td></tr>
     <tr><td>2 or 12</td><td>Legendary</td><td>+10</td></tr>
   </table>
+  <h3>Double rules (a simpler way to play)</h3>
+  <p>Same game, two changes. When the egg <b>hatches</b>, your warmth <b>doubles</b> (there’s no bonus table). When you <b>tiptoe away</b>, you keep <b>all</b> your warmth, and nothing is left behind. Play to 50 points.</p>
+  <p>Easy eggs hatch almost as often as a 7 shows up, so they’re worth pushing your luck. Legendary eggs almost never hatch, so take a few points and tiptoe away!</p>
   <h3>Winning</h3>
   <p>When someone reaches the target score, finish the round so everyone has had the same number of turns. Most points wins. A tie means one more turn each.</p>
   <div class="actions"><button class="btn" id="closeRules">Got it</button></div>
@@ -398,6 +407,10 @@ dialog p { margin: 6px 0; }
   const BAND_NAME = {easy:'Easy', medium:'Medium', hard:'Hard', vhard:'Very hard', legend:'Legendary', dragon:'Dragon'};
   const BAND_COLOR = {easy:'#5DB04B', medium:'#2F9DAB', hard:'#4A6FD0', vhard:'#9354C4', legend:'#D9466F', dragon:'#8E1C24'};
   const WAYS = n => 6 - Math.abs(7 - n);
+  const isDouble = () => S && S.rules === 'double';
+  const hatchPts = (egg, w) => isDouble() ? w * 2 : w + BONUS[egg];
+  const keepPts = w => isDouble() ? w : Math.floor(w / 2);
+  const hatchWorth = egg => isDouble() ? '×2' : '+' + BONUS[egg];
   const TRACK_MAX = 25;
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const $ = id => document.getElementById(id);
@@ -447,7 +460,7 @@ dialog p { margin: 6px 0; }
         c.innerHTML = `<div class="n">7</div><div class="b" style="font-size:14px">Dragon!</div><div class="w">1st roll:<br>Golden Egg</div>`;
       } else {
         c.innerHTML = `<svg class="token" viewBox="0 0 26 32"><ellipse cx="13" cy="17" rx="11" ry="14" fill="#FBF5E6" stroke="#2A1E3D" stroke-width="2.5"/></svg>
-          <div class="n">${n}</div><div class="b">+${BONUS[n]}</div><div class="w">${BAND_NAME[band]}<br>${WAYS(n)} way${WAYS(n) > 1 ? 's' : ''}</div>`;
+          <div class="n">${n}</div><div class="b">${hatchWorth(n)}</div><div class="w">${BAND_NAME[band]}<br>${WAYS(n)} way${WAYS(n) > 1 ? 's' : ''}</div>`;
       }
       eb.appendChild(c);
     }
@@ -487,25 +500,25 @@ dialog p { margin: 6px 0; }
     });
     const t = document.createElement('div');
     t.className = 'sinfo';
-    t.textContent = `First to ${S.target} points. ` + (S.tiebreak ? 'Tie-breaker round!' : `Round ${S.round}.`);
+    t.textContent = `First to ${S.target} points. ${isDouble() ? 'Double rules. ' : ''}` + (S.tiebreak ? 'Tie-breaker round!' : `Round ${S.round}.`);
     box.appendChild(t);
   }
 
   function renderBoards() {
     for (let n = 2; n <= 12; n++) $('ecell' + n).classList.toggle('here', S.egg === n);
     const w = Math.min(S.warmth, TRACK_MAX);
-    const keep = Math.floor(S.warmth / 2);
+    const keep = keepPts(S.warmth);
     for (let i = 0; i <= TRACK_MAX; i++) {
       const c = $('tcell' + i);
       c.classList.toggle('here', S.egg != null && i === w);
-      c.classList.toggle('half', S.phase === 'warm' && S.warmth > 1 && i === Math.min(keep, TRACK_MAX));
+      c.classList.toggle('half', !isDouble() && S.phase === 'warm' && S.warmth > 1 && i === Math.min(keep, TRACK_MAX));
       c.classList.toggle('left', S.phase === 'adopt' && S.abandoned && i === Math.min(S.abandoned.warmth, TRACK_MAX));
     }
     const info = $('trackinfo');
     if (S.phase === 'adopt' && S.abandoned) {
       info.innerHTML = `Left behind: egg <b>${S.abandoned.egg}</b> with <b>${S.abandoned.warmth}</b> warmth (blue outline).`;
     } else if (S.egg != null) {
-      info.innerHTML = `Warmth: <b>${S.warmth}</b> <span>If it hatches: <b>${S.warmth + BONUS[S.egg]}</b> points</span> <span>Tiptoe away now: keep <b>${keep}</b> (dashed square)</span>`;
+      info.innerHTML = `Warmth: <b>${S.warmth}</b> <span>If it hatches: <b>${hatchPts(S.egg, S.warmth)}</b> points</span> <span>Tiptoe away now: keep <b>${keep}</b>${isDouble() ? '' : ' (dashed square)'}</span>`;
     } else {
       info.innerHTML = `Warmth: <b>0</b>`;
     }
@@ -562,8 +575,9 @@ dialog p { margin: 6px 0; }
   const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
 
   // ---------- Game flow ----------
-  function newGame(names, cpu, target) {
+  function newGame(names, cpu, target, rules = 'classic') {
     S = {
+      rules,
       players: names.map((n, i) => ({ name: n, score: 0, cpu: cpu && i === 1 })),
       order: [0, 1], pos: 0, round: 1, target,
       phase: 'find', egg: null, warmth: 0, rolls: [],
@@ -571,6 +585,13 @@ dialog p { margin: 6px 0; }
       awake: false, hatched: false, golden: false,
     };
     setFace($('die1'), 1); setFace($('die2'), 1); $('sum').textContent = '';
+    buildEggBoard();
+    $('eggBoardNote').textContent = isDouble()
+      ? 'The marker shows your egg number. Every hatch doubles your warmth, but easy eggs hatch more often.'
+      : 'The marker shows your egg number and its bonus.';
+    $('legend').innerHTML = isDouble()
+      ? `<span style="--c:var(--easy)">Easy</span><span style="--c:var(--medium)">Medium</span><span style="--c:var(--hard)">Hard</span><span style="--c:var(--vhard)">Very hard</span><span style="--c:var(--legend)">Legendary</span><span style="--c:var(--dragon)">7 = Dragon</span>`
+      : `<span style="--c:var(--easy)">Easy +2</span><span style="--c:var(--medium)">Medium +4</span><span style="--c:var(--hard)">Hard +6</span><span style="--c:var(--vhard)">Very hard +8</span><span style="--c:var(--legend)">Legendary +10</span><span style="--c:var(--dragon)">7 = Dragon</span>`;
     startTurn();
   }
 
@@ -611,7 +632,7 @@ dialog p { margin: 6px 0; }
   }
 
   function warmActions() {
-    setActions([['Roll again', doRoll], [`Tiptoe away (keep ${Math.floor(S.warmth / 2)})`, tiptoe, true]]);
+    setActions([['Roll again', doRoll], [`Tiptoe away (keep ${keepPts(S.warmth)})`, tiptoe, true]]);
   }
 
   async function doRoll() {
@@ -632,7 +653,9 @@ dialog p { margin: 6px 0; }
       S.egg = n; S.phase = 'warm';
       S.rolls.push({ n, kind: 'egg' });
       const band = BAND(n);
-      say(`Your egg number is <strong>${n}</strong>. That’s a <strong>${BAND_NAME[band]}</strong> egg, worth a <strong>+${BONUS[n]}</strong> bonus if it hatches.<br>Now roll to warm it. Roll another <strong>${n}</strong> to hatch it. A <strong>7</strong> wakes the dragon!`);
+      say(isDouble()
+        ? `Your egg number is <strong>${n}</strong>. That’s a <strong>${BAND_NAME[band]}</strong> egg (${WAYS(n)} way${WAYS(n) > 1 ? 's' : ''} to roll it). If it hatches, your warmth <strong>doubles</strong>.<br>Roll another <strong>${n}</strong> to hatch it. A <strong>7</strong> wakes the dragon!`
+        : `Your egg number is <strong>${n}</strong>. That’s a <strong>${BAND_NAME[band]}</strong> egg, worth a <strong>+${BONUS[n]}</strong> bonus if it hatches.<br>Now roll to warm it. Roll another <strong>${n}</strong> to hatch it. A <strong>7</strong> wakes the dragon!`);
       renderAll(); warmActions();
       if (p.cpu) cpuThink();
       return;
@@ -641,11 +664,13 @@ dialog p { margin: 6px 0; }
     if (n === S.egg) {
       S.rolls.push({ n, kind: 'match' });
       S.hatched = true;
-      const pts = S.warmth + BONUS[S.egg];
+      const pts = hatchPts(S.egg, S.warmth);
       p.score += pts;
       banner(`It hatched! +${pts}`);
       $('ecell' + S.egg).classList.add('flash'); setTimeout(() => $('ecell' + S.egg) && $('ecell' + S.egg).classList.remove('flash'), 1300);
-      endTurn(`You rolled <strong>${n}</strong>. The egg <strong>hatches</strong>! ${esc(p.name)} scores ${S.warmth} warmth + ${BONUS[S.egg]} bonus = <strong>${pts} points</strong>.`);
+      endTurn(isDouble()
+        ? `You rolled <strong>${n}</strong>. The egg <strong>hatches</strong>! ${esc(p.name)}’s ${S.warmth} warmth doubles to <strong>${pts} points</strong>.`
+        : `You rolled <strong>${n}</strong>. The egg <strong>hatches</strong>! ${esc(p.name)} scores ${S.warmth} warmth + ${BONUS[S.egg]} bonus = <strong>${pts} points</strong>.`);
     } else if (n === 7) {
       S.rolls.push({ n, kind: 'seven' });
       S.awake = true;
@@ -656,7 +681,7 @@ dialog p { margin: 6px 0; }
     } else {
       S.rolls.push({ n, kind: 'warm' });
       S.warmth++;
-      say(`You rolled <strong>${n}</strong>. The egg gets warmer: <strong>${S.warmth}</strong> warmth.<br>Roll again for a <strong>${S.egg}</strong>, or tiptoe away and keep <strong>${Math.floor(S.warmth / 2)}</strong>.`);
+      say(`You rolled <strong>${n}</strong>. The egg gets warmer: <strong>${S.warmth}</strong> warmth.<br>Roll again for a <strong>${S.egg}</strong>${isDouble() ? ` (hatching would make it <strong>${S.warmth * 2}</strong>)` : ''}, or tiptoe away and keep <strong>${keepPts(S.warmth)}</strong>.`);
       renderAll(); warmActions();
       if (p.cpu) cpuThink();
     }
@@ -665,11 +690,15 @@ dialog p { margin: 6px 0; }
   function tiptoe() {
     if (busy) return;
     const p = cur();
-    const keep = Math.floor(S.warmth / 2);
+    const keep = keepPts(S.warmth);
     const left = S.warmth - keep;
     p.score += keep;
-    S.abandoned = { egg: S.egg, warmth: left, by: curIdx() };
     banner(`Tiptoed away +${keep}`);
+    if (isDouble()) {
+      endTurn(`<strong>${esc(p.name)}</strong> tiptoes away and keeps all <strong>${keep}</strong> warmth. The egg stays in the nest.`);
+      return;
+    }
+    S.abandoned = { egg: S.egg, warmth: left, by: curIdx() };
     endTurn(`<strong>${esc(p.name)}</strong> tiptoes away and keeps <strong>${keep}</strong> warmth. Egg <strong>${S.egg}</strong> and <strong>${left}</strong> warmth are left behind for the next player.`);
   }
 
@@ -726,16 +755,20 @@ dialog p { margin: 6px 0; }
     const p = S.players[w];
     banner(`${p.name} wins!`, 4000);
     say(`<strong>${esc(p.name)}</strong> wins with <strong>${p.score} points</strong>! The baby dragons are all safe and warm.`);
-    setActions([['Play again', () => openSetup()], ['Same players, new game', () => newGame(S.players.map(x => x.name), S.players[1].cpu, S.target), true]]);
+    setActions([['Play again', () => openSetup()], ['Same players, new game', () => newGame(S.players.map(x => x.name), S.players[1].cpu, S.target, S.rules), true]]);
   }
 
   // ---------- Computer player ----------
   function cpuWantsToRoll() {
     const p = cur();
-    const keep = Math.floor(S.warmth / 2);
+    const keep = keepPts(S.warmth);
     if (p.score + keep >= S.target && keep > 0) return false;
     // compare: value of one more roll vs. tiptoeing now
     const ph = WAYS(S.egg) / 36, p7 = 6 / 36, pc = 1 - ph - p7;
+    if (isDouble()) {
+      if (S.warmth >= 18) return false; // don't get greedy
+      return ph * S.warmth * 2 + pc * (S.warmth + 1) > S.warmth;
+    }
     const rollValue = ph * (S.warmth + BONUS[S.egg]) + pc * Math.floor((S.warmth + 1) / 2) * 1.15;
     return rollValue >= keep;
   }
@@ -770,17 +803,32 @@ dialog p { margin: 6px 0; }
     const d = $('setup');
     if (!d.open) d.showModal();
   }
-  document.querySelectorAll('.mode').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.mode[data-mode]').forEach(b => b.addEventListener('click', () => {
     mode = b.dataset.mode;
-    document.querySelectorAll('.mode').forEach(x => x.classList.toggle('on', x === b));
+    document.querySelectorAll('.mode[data-mode]').forEach(x => x.classList.toggle('on', x === b));
     $('n2wrap').style.display = mode === 'cpu' ? 'none' : '';
   }));
   $('startBtn').addEventListener('click', () => {
     const n1 = $('n1').value.trim() || 'Player 1';
     const n2 = mode === 'cpu' ? 'Computer' : ($('n2').value.trim() || 'Player 2');
     $('setup').close();
-    newGame([n1, n2], mode === 'cpu', parseInt($('target').value, 10));
+    newGame([n1, n2], mode === 'cpu', parseInt($('target').value, 10), setupRules);
   });
+  const TARGETS = {
+    classic: [[15, '15 (quick demo)'], [20, '20'], [25, '25'], [30, '30 (full game)']],
+    double: [[25, '25 (quick demo)'], [35, '35'], [50, '50 (full game)']],
+  };
+  let setupRules = 'classic';
+  function fillTargets() {
+    const list = TARGETS[setupRules];
+    $('target').innerHTML = list.map(([v, l], i) => `<option value="${v}"${i === list.length - 1 ? ' selected' : ''}>${l}</option>`).join('');
+  }
+  document.querySelectorAll('.mode[data-rules]').forEach(b => b.addEventListener('click', () => {
+    setupRules = b.dataset.rules;
+    document.querySelectorAll('.mode[data-rules]').forEach(x => x.classList.toggle('on', x === b));
+    fillTargets();
+  }));
+  fillTargets();
   $('setupRules').addEventListener('click', () => $('rules').showModal());
   $('rulesBtn').addEventListener('click', () => $('rules').showModal());
   $('closeRules').addEventListener('click', () => $('rules').close());
